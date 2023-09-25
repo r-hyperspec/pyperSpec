@@ -1,0 +1,16 @@
+repos:
+- repo: local
+  hooks:
+  - id: black
+    name: black
+    entry: poetry run black .
+    language: system
+    pass_filenames: false
+
+- repo: local
+  hooks:
+  - id: ruff
+    name: ruff
+    entry: poetry run ruff --fix --exit-non-zero-on-fix .
+    language: system
+    pass_filenames: false
