@@ -2,6 +2,7 @@ from typing import Any, Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
+import scipy
 
 __all__ = ["SpectraFrame"]
 
@@ -259,6 +260,97 @@ class SpectraFrame:
         return SpectraFrame(spc=np.trunc(self.spc), wl=self.wl, data=self.data)
 
     # ----------------------------------------------------------------------
+    # Wavelengths
 
+    def interpolate(self, new_wl: np.ndarray, **kwargs) -> "SpectraFrame":
+        interpolator = scipy.interpolate.interp1d(x=self.wl, y=self.spc, **kwargs)
+        new_spc = interpolator(new_wl)
+        return SpectraFrame(new_spc, wl=new_wl, data=self.data)
+
+    def set_wl(
+        self, new_wl: np.ndarray, interpolate: bool = False, **kwargs
+    ) -> "SpectraFrame":
+        if interpolate:
+            return self.interpolate(new_wl, **kwargs)
+        if len(new_wl) != self.nwl:
+            raise ValueError(
+                "Length of the new wavelengths array does not match the data"
+            )
+        return SpectraFrame(self.spc, wl=new_wl, data=self.data)
+
+    # ----------------------------------------------------------------------
+    # Stats & Applys
+    def apply(
+        self, func: Union[str, callable], *args, axis: int = 1, **kwargs
+    ) -> "SpectraFrame":
+        # Check and prepare parameters
+        if isinstance(func, str):
+            name = func
+            if hasattr(np, name):
+                func = getattr(np, name)
+            else:
+                raise ValueError(f"Could not find function {name} in `numpy`")
+
+            res: np.ndarray = func(self.spc, *args, axis=axis, **kwargs)
+            # Functions like np.quantile behave differently than apply_alog_axis
+            # Here we make the shape of the matrix to be the same
+            if (res.ndim > 1) and (axis == 1):
+                res = res.T
+        else:
+            res = np.apply_along_axis(func, axis, self.spc, *args, **kwargs)
+
+        # Reshape the result to keep dimenstions
+        if res.ndim == 1:
+            res = res.reshape((1, -1)) if axis == 0 else res.reshape((-1, 1))
+
+        # Prepare the output
+        if axis == 0:
+            return SpectraFrame(res, wl=self.wl)
+        elif axis == 1:
+            return SpectraFrame(res, data=self.data)
+        else:
+            raise ValueError(f"Unexpected `axis` value {axis}")
+
+    def mean(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanmean", axis, *args, **kwargs)
+        return self.apply("mean", axis, *args, **kwargs)
+
+    def std(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanstd", axis, *args, **kwargs)
+        return self.apply("std", axis, *args, **kwargs)
+
+    def median(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanmedian", axis, *args, **kwargs)
+        return self.apply("median", axis, *args, **kwargs)
+
+    def mad(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            median = lambda x: np.nanmedian(x, *args, **kwargs)
+        else:
+            median = lambda x: np.median(x, *args, **kwargs)
+        return self.apply(lambda x: median(np.absolute(x - median(x))), axis)
+
+    def quantile(
+        self, q, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanquantile", axis, q, *args, **kwargs)
+        return self.apply("quantile", axis, q, *args, **kwargs)
+
+    # ----------------------------------------------------------------------
     def __str__(self) -> str:
         return str(self.shape)
+
+    def __repr__(self) -> str:
+        return str(self)

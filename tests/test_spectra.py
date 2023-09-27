@@ -252,3 +252,61 @@ class TestSpectraFrameSlicers:
     #     assert np.array_equal(
     #         frame.data.loc[1:2, :], np.array([[88.0, 88.0, 88.0], [88.0, 88.0, 88.0]])
     #     )
+
+
+class TestSpectraFrameApply:
+    def sample_spectra_frame(self) -> SpectraFrame:
+        spc = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        wl = np.array([400, 500, 600])
+        data = pd.DataFrame(
+            {"A": [10, 11, 12], "B": [13, 14, 15], "C": [16, 17, 18]},
+            index=[5, 6, 7],
+        )
+        return SpectraFrame(spc, wl, data)
+
+    def test_string_function_scalar(self):
+        frame = self.sample_spectra_frame()
+
+        # Apply a NumPy function using a string
+        result = frame.apply("sum", axis=0)
+        assert np.array_equal(result.spc, np.sum(frame.spc, axis=0).reshape((1, -1)))
+        assert np.array_equal(result.wl, frame.wl)
+        assert result.data.shape == (1, 0)
+
+        # Apply a NumPy function using a string with axis=1
+        result = frame.apply("mean", axis=1)
+        assert np.array_equal(result.spc, np.mean(frame.spc, axis=1).reshape((-1, 1)))
+        assert np.array_equal(result.wl, [0])
+        assert_frame_equal(result.data, frame.data)
+
+    def test_string_function_vector(self):
+        frame = self.sample_spectra_frame()
+        q = [0.1, 0.2, 0.3, 0.4, 0.5]
+
+        # Apply a NumPy function using a string
+        result = frame.apply("quantile", q, axis=0)
+        assert np.array_equal(result.spc, np.quantile(frame.spc, q, axis=0))
+        assert np.array_equal(result.wl, frame.wl)
+        assert result.data.shape == (len(q), 0)
+
+        # Apply a NumPy function using a string with axis=1
+        result = frame.apply("quantile", q, axis=1)
+        assert np.array_equal(result.spc, np.quantile(frame.spc, q, axis=1).T)
+        assert np.array_equal(result.wl, np.arange(len(q)))
+        assert_frame_equal(result.data, frame.data)
+
+    def test_custom_function(self):
+        frame = self.sample_spectra_frame()
+        custom_function = lambda x: np.sum(x) * 2
+
+        # Apply a custom callable function
+        result = frame.apply(custom_function, axis=0)
+        assert np.array_equal(result.spc, np.array([[24.0, 30.0, 36.0]]))
+        assert np.array_equal(result.wl, frame.wl)
+        assert result.data.shape == (1, 0)
+
+        # Apply a custom callable function with axis=1
+        result = frame.apply(custom_function, axis=1)
+        assert np.array_equal(result.spc, np.array([[12.0], [30.0], [48.0]]))
+        assert np.array_equal(result.wl, [0])
+        assert_frame_equal(result.data, frame.data)
