@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union, Tuple
+from typing import Any, Optional, Union, Tuple, Callable
 
 import numpy as np
 import pandas as pd
@@ -141,7 +141,7 @@ class SpectraFrame:
         if len(slicer) == 3:
             use_iloc = False
         else:
-            use_iloc == bool(slicer[3])
+            use_iloc = bool(slicer[3])
             slicer = slicer[:3]
 
         rows, cols, wls = (
@@ -280,10 +280,76 @@ class SpectraFrame:
 
     # ----------------------------------------------------------------------
     # Stats & Applys
-    def apply(
-        self, func: Union[str, callable], *args, axis: int = 1, **kwargs
-    ) -> "SpectraFrame":
+    def _get_axis(self, axis, groupby=None) -> int:
+        """Get axis value in standard format"""
+        if groupby is not None:
+            return 0
+        if axis in [0, "index"]:
+            return 0
+        elif axis in [1, "columns"]:
+            return 1
+        else:
+            raise ValueError(f"Unexpected `axis` value {axis}")
+
+    def _get_groupby(self, groupby) -> list[str]:
+        """Format and validate groupby value"""
+        if groupby is None:
+            return None
+
+        # Grouped
+        if isinstance(groupby, str):
+            groupby = [groupby]
+
+        # Check the names are in the data
+        for name in groupby:
+            if name not in self.data.columns:
+                raise ValueError(f"Column '{name}' is not presented in the data")
+
+        return groupby
+
+    def _apply_func(
+        self,
+        func: Union[str, Callable],
+        *args,
+        data: np.ndarray = None,
+        axis: int = 1,
+        **kwargs,
+    ) -> np.ndarray:
+        """Apply a function alog an axis
+
+        Dispatches calculation to `np.apply_alog_axis` (if func is callable) or
+        `np.<func>` (if func is a string)
+
+        Parameters
+        ----------
+        func : Union[str, Callable]
+            Either a string with the name of numpy funciton, e.g "max", "mean", etc.
+            Or a callable function that can be passed to `numpy.apply_along_axis`
+        data : np.ndarray, optional
+            To which data apply the function, by default `self.spc`
+            This parameter is useful for cases when the function must be applied on
+            different parts of the spctral data, e.g. when groupby is used
+        axis : int, optional
+            Standard axis. Same as in `numpy` or `pandas`, by default 1
+
+        Returns
+        -------
+        np.ndarray
+            The output array. The shape of out is identical to the shape of data, except
+            along the axis dimension. This axis is removed, and replaced with new
+            dimensions equal to the shape of the return value of func. So if func
+            returns a scalar, the output will be eirther single row (axis=0) or
+            single column (axis=1) matrix.
+
+        Raises
+        ------
+        ValueError
+            Function with provided name `func` was not found in `numpy`
+        """
         # Check and prepare parameters
+        if data is None:
+            data = self.spc
+
         if isinstance(func, str):
             name = func
             if hasattr(np, name):
@@ -291,25 +357,112 @@ class SpectraFrame:
             else:
                 raise ValueError(f"Could not find function {name} in `numpy`")
 
-            res: np.ndarray = func(self.spc, *args, axis=axis, **kwargs)
+            res: np.ndarray = func(data, *args, axis=axis, **kwargs)
             # Functions like np.quantile behave differently than apply_alog_axis
             # Here we make the shape of the matrix to be the same
             if (res.ndim > 1) and (axis == 1):
                 res = res.T
         else:
-            res = np.apply_along_axis(func, axis, self.spc, *args, **kwargs)
+            res = np.apply_along_axis(func, axis, data, *args, **kwargs)
 
         # Reshape the result to keep dimenstions
         if res.ndim == 1:
             res = res.reshape((1, -1)) if axis == 0 else res.reshape((-1, 1))
 
-        # Prepare the output
-        if axis == 0:
-            return SpectraFrame(res, wl=self.wl)
-        elif axis == 1:
-            return SpectraFrame(res, data=self.data)
+        return res
+
+    def apply(
+        self,
+        func: Union[str, callable],
+        *args,
+        groupby: Union[str, list[str]] = None,
+        axis: int = 1,
+        **kwargs,
+    ) -> "SpectraFrame":
+        """Apply function to the spectral data
+
+        Parameters
+        ----------
+        func : Union[str, callable]
+            Either a string with the name of numpy funciton, e.g "max", "mean", etc.
+            Or a callable function that can be passed to `numpy.apply_along_axis`
+        groupby : Union[str, list[str]], optional
+            Single or list of `data` column names to use for grouping the data.
+            By default None, so the function applied to the all spectral data.
+        axis : int, optional
+             Standard axis. Same as in `numpy` or `pandas`, by default 1 when groupby
+             is not provided, and 0 when provided.
+
+        Returns
+        -------
+        SpectraFrame
+            Output spectral frame where
+            * `out.spc` is the results of `func`
+            * `out.wl` either the same (axis=0) or range 0..N (axis=1)
+            * `out.data` The same if axis=1. If axis=0, either empty (no grouping)
+                or represents the grouping.
+        """
+
+        # Prepare arguments
+        axis = self._get_axis(axis, groupby)
+        groupby = self._get_groupby(groupby)
+
+        # Prepare default values
+        new_wl = self.wl if axis == 0 else None
+        new_data = self.data if axis == 1 else None
+
+        if groupby is None:
+            new_spc = self._apply_func(func, *args, axis=axis, **kwargs)
         else:
-            raise ValueError(f"Unexpected `axis` value {axis}")
+            # Prepare a dataframe for groupby aggregation
+            grouped = self.to_dataframe().groupby(groupby)[self.wl]
+
+            # Prepare list of group names as dicts {'column name': 'column value', ...}
+            if len(groupby) > 1:
+                groups = [dict(zip(groupby, gr)) for gr in grouped.groups.keys()]
+            else:
+                groups = [{groupby[0]: gr} for gr in grouped.groups.keys()]
+
+            # Apply to each group
+            spc_list = [
+                self._apply_func(func, *args, data=group.values, axis=0, **kwargs)
+                for _, group in grouped
+            ]
+            data_list = [
+                pd.DataFrame({**gr, "group_index": range(spc_list[i].shape[0])})
+                for i, gr in enumerate(groups)
+            ]
+
+            # Combine
+            new_spc = np.concatenate(spc_list, axis=0)
+            new_data = pd.concat(data_list, axis=0, ignore_index=True)
+
+        return SpectraFrame(new_spc, wl=new_wl, data=new_data)
+
+    # ----------------------------------------------------------------------
+    # Dispatching to numpy methods
+    # TODO: It would be good to group the method declarations below
+
+    def min(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanmin", axis, *args, **kwargs)
+        return self.apply("min", axis, *args, **kwargs)
+
+    def max(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nanmax", axis, *args, **kwargs)
+        return self.apply("max", axis, *args, **kwargs)
+
+    def sum(
+        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+    ) -> "SpectraFrame":
+        if ignore_na:
+            return self.apply("nansum", axis, *args, **kwargs)
+        return self.apply("sum", axis, *args, **kwargs)
 
     def mean(
         self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
@@ -349,8 +502,44 @@ class SpectraFrame:
         return self.apply("quantile", axis, q, *args, **kwargs)
 
     # ----------------------------------------------------------------------
+    # Format conversion
+
+    def to_dataframe(self, multiindex=False) -> pd.DataFrame:
+        """Convert to a pandas DataFrame
+
+        Parameters
+        ----------
+        multiindex : bool, optional
+            Adds an index level to columns separating spectral data (`spc`) from
+            meta data (`data`), by default False
+
+        Returns
+        -------
+        pd.DataFrame
+            Dataframe where spectral data is combined with meta data.
+            Wavelengths are used as column names for spectral data part.
+        """
+        df = pd.concat(
+            [pd.DataFrame(self.spc, columns=self.wl, index=self.data.index), self.data],
+            axis=1,
+        )
+
+        if multiindex:
+            df.columns = pd.MultiIndex.from_tuples(
+                [("spc", wl) for wl in self.wl]
+                + [("data", col) for col in self.data.columns]
+            )
+
+        return df
+
+    # ----------------------------------------------------------------------
+    def _to_print_dataframe(self) -> pd.DataFrame:
+        print_df = self[:, :, [0, -1], True].to_dataframe()
+        print_df.insert(loc=1, column="...", value="...")
+        return print_df
+
     def __str__(self) -> str:
-        return str(self.shape)
+        return self._to_print_dataframe().__str__()
 
     def __repr__(self) -> str:
-        return str(self)
+        return self._to_print_dataframe().__repr__()

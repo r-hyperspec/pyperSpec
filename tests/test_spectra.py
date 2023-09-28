@@ -5,6 +5,7 @@ from pandas.testing import assert_frame_equal
 import pytest
 
 from pyspc import SpectraFrame
+from pyspc.testing import assert_spectraframe_equal
 
 
 class TestSpectraFrameInit:
@@ -360,3 +361,122 @@ class TestSpectraFrameApply:
         assert np.array_equal(result.spc, np.array([[1, 3], [4, 6], [7, 9]]))
         assert np.array_equal(result.wl, [0, 1])
         assert_frame_equal(result.data, frame.data)
+
+
+class TestSpectraFrameApplyGroupBy:
+    def sample_spectra_frame(self) -> SpectraFrame:
+        return SpectraFrame(
+            [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                [9, 10, 11, 12],
+                [13, 14, 15, 16],
+                [17, 18, 19, 20],
+                [21, 22, 23, 24],
+            ],
+            wl=[400, 600, 800, 1000],
+            data=pd.DataFrame(
+                {"A": np.repeat([10, 11, 12], 2), "B": np.repeat(["B1", "B2"], 3)},
+                index=list("abcdef"),
+            ),
+        )
+
+    def test_scalar_by_single_column(self):
+        frame = self.sample_spectra_frame()
+        expected = SpectraFrame(
+            frame.spc[[2, 5], :],
+            wl=frame.wl,
+            data=pd.DataFrame({"B": ["B1", "B2"], "group_index": [0, 0]}),
+        )
+
+        # Test string function
+        result = frame.apply("max", groupby="B")
+        assert_spectraframe_equal(result, expected)
+
+        # Test custom function
+        result = frame.apply(np.max, groupby="B")
+        assert_spectraframe_equal(result, expected)
+
+        # Test single column as a list
+        result = frame.apply(np.max, groupby=["B"])
+        assert_spectraframe_equal(result, expected)
+
+    def test_scalar_by_multi_column(self):
+        frame = self.sample_spectra_frame()
+        expected = SpectraFrame(
+            frame.spc[[1, 2, 3, 5], :],
+            wl=frame.wl,
+            data=pd.DataFrame(
+                {
+                    "B": ["B1", "B1", "B2", "B2"],
+                    "A": [10, 11, 11, 12],
+                    "group_index": [0, 0, 0, 0],
+                }
+            ),
+        )
+
+        # Test string function
+        result = frame.apply("max", groupby=["B", "A"])
+        assert_spectraframe_equal(result, expected)
+
+        # Test custom function
+        result = frame.apply(np.max, groupby=["B", "A"])
+        assert_spectraframe_equal(result, expected)
+
+    def test_vector_by_single_column(self):
+        frame = self.sample_spectra_frame()
+        expected = SpectraFrame(
+            [
+                0.5 * (frame.spc[0, :] + frame.spc[1, :]),
+                0.5 * (frame.spc[1, :] + frame.spc[2, :]),
+                0.5 * (frame.spc[3, :] + frame.spc[4, :]),
+                0.5 * (frame.spc[4, :] + frame.spc[5, :]),
+            ],
+            wl=frame.wl,
+            data=pd.DataFrame(
+                {"B": np.repeat(["B1", "B2"], 2), "group_index": [0, 1, 0, 1]}
+            ),
+        )
+
+        # Test string function
+        result = frame.apply("quantile", [0.33, 0.67], groupby="B", method="midpoint")
+        assert_spectraframe_equal(result, expected)
+
+        # Test custom function
+        result = frame.apply(np.quantile, [0.33, 0.67], groupby="B", method="midpoint")
+        assert_spectraframe_equal(result, expected)
+
+    def test_vector_by_multi_column(self):
+        frame = self.sample_spectra_frame()
+        expected = SpectraFrame(
+            [
+                0.5 * (frame.spc[0, :] + frame.spc[1, :]),
+                0.5 * (frame.spc[0, :] + frame.spc[1, :]),
+                frame.spc[2, :],
+                frame.spc[2, :],
+                frame.spc[3, :],
+                frame.spc[3, :],
+                0.5 * (frame.spc[4, :] + frame.spc[5, :]),
+                0.5 * (frame.spc[4, :] + frame.spc[5, :]),
+            ],
+            wl=frame.wl,
+            data=pd.DataFrame(
+                {
+                    "B": np.repeat(["B1", "B2"], 4),
+                    "A": np.repeat([10, 11, 11, 12], 2).astype(np.int64),
+                    "group_index": [0, 1] * 4,
+                }
+            ),
+        )
+
+        # Test string function
+        result = frame.apply(
+            "quantile", [0.33, 0.67], groupby=["B", "A"], method="midpoint"
+        )
+        assert_spectraframe_equal(result, expected)
+
+        # Test custom function
+        result = frame.apply(
+            np.quantile, [0.33, 0.67], groupby=["B", "A"], method="midpoint"
+        )
+        assert_spectraframe_equal(result, expected)
