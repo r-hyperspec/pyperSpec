@@ -197,7 +197,7 @@ class TestSpectraFrameSlicers:
         return SpectraFrame(spc, wl, data)
 
     # Test cases for __getitem__
-    def test_spectraframe_getitem(self):
+    def test_getitem_loc(self):
         frame = self.sample_spectra_frame()
 
         # Select specific rows, columns, and wavelengths
@@ -226,6 +226,40 @@ class TestSpectraFrameSlicers:
 
         # Select specific rows, all columns, and specific wavelengths
         result = frame[6:7, :, [400, 600]]
+        assert np.array_equal(result.spc, frame.spc[1:3, [0, -1]])
+        assert np.array_equal(result.wl, [400, 600])
+        assert result.data.equals(frame.data.iloc[1:3, :])
+
+    # Test cases for __getitem__
+    def test_getitem_iloc(self):
+        frame = self.sample_spectra_frame()
+
+        # Select specific rows, columns, and wavelengths
+        result = frame[1, 0, 1, True]
+        assert np.array_equal(result.spc, np.array([[5.0]]))
+        assert np.array_equal(result.wl, np.array([500]))
+        assert result.data.equals(frame.data.iloc[[1], [0]])
+
+        # Select specific rows and wavelengths, all columns
+        result = frame[0:2, :, :2, True]
+        assert np.array_equal(result.spc, np.array([[1.0, 2.0], [4.0, 5.0]]))
+        assert np.array_equal(result.wl, np.array([400, 500]))
+        assert result.data.equals(frame.data.iloc[0:2, :])
+
+        # Select specific rows, all columns, and a wavelength range
+        result = frame[1:3, :, 0:4, True]
+        assert np.array_equal(result.spc, np.array([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]))
+        assert np.array_equal(result.wl, np.array([400, 500, 600]))
+        assert result.data.equals(frame.data.iloc[1:3, :])
+
+        # Select specific rows, all columns, and all wavelengths
+        result = frame[1:3, :, :, True]
+        assert np.array_equal(result.spc, np.array([[4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]))
+        assert np.array_equal(result.wl, frame.wl)
+        assert result.data.equals(frame.data.iloc[1:3, :])
+
+        # Select specific rows, all columns, and specific wavelengths
+        result = frame[1:3, :, [0, -1], True]
         assert np.array_equal(result.spc, frame.spc[1:3, [0, -1]])
         assert np.array_equal(result.wl, [400, 600])
         assert result.data.equals(frame.data.iloc[1:3, :])
@@ -295,7 +329,7 @@ class TestSpectraFrameApply:
         assert np.array_equal(result.wl, np.arange(len(q)))
         assert_frame_equal(result.data, frame.data)
 
-    def test_custom_function(self):
+    def test_custom_function_scalar(self):
         frame = self.sample_spectra_frame()
         custom_function = lambda x: np.sum(x) * 2
 
@@ -309,4 +343,20 @@ class TestSpectraFrameApply:
         result = frame.apply(custom_function, axis=1)
         assert np.array_equal(result.spc, np.array([[12.0], [30.0], [48.0]]))
         assert np.array_equal(result.wl, [0])
+        assert_frame_equal(result.data, frame.data)
+
+    def test_custom_function_vector(self):
+        frame = self.sample_spectra_frame()
+        custom_function = lambda x: [np.min(x), np.max(x)]
+
+        # Apply a custom callable function
+        result = frame.apply(custom_function, axis=0)
+        assert np.array_equal(result.spc, np.array([[1, 2, 3], [7, 8, 9]]))
+        assert np.array_equal(result.wl, frame.wl)
+        assert result.data.shape == (2, 0)
+
+        # Apply a custom callable function with axis=1
+        result = frame.apply(custom_function, axis=1)
+        assert np.array_equal(result.spc, np.array([[1, 3], [4, 6], [7, 9]]))
+        assert np.array_equal(result.wl, [0, 1])
         assert_frame_equal(result.data, frame.data)
