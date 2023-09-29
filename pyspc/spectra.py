@@ -119,70 +119,86 @@ class SpectraFrame:
         )
 
     # ----------------------------------------------------------------------
-    # Get and set items
-    def _parse_getitem_selector(
-        self, index: pd.Index, selector: Any
+    # Accessing data
+    def _parse_getitem_single_selector(
+        self, index: pd.Index, selector: Any, iloc: bool = False
     ) -> Union[slice, list]:
+        # If selector is slicer like 400:600 or 0:8:2
         if isinstance(selector, slice):
-            return index.slice_indexer(selector.start, selector.stop, selector.step)
+            if iloc:
+                return selector
+            else:
+                return index.slice_indexer(selector.start, selector.stop, selector.step)
 
-        idx = index.get_indexer(selector)
-        if np.any(idx == -1):
-            raise ValueError(f"Unexpected wavelenght(s) {index[idx == -1]}")
+        # Pre-format selector to be 1d np.array
+        selector: np.ndarray = np.array(selector)
+        if selector.ndim == 0:
+            selector = selector.reshape((-1,))
+
+        # If boolean vector, e.g. [True, False, True]
+        if selector.dtype == "bool":
+            if len(selector) != len(index):
+                raise ValueError("Boolean vector has does not match with the size")
+            return np.where(selector)[0]
+
+        # List of specific items to select, e.g. ["A", "D"], [0,-1]
+        if iloc:
+            idx = selector
+        else:
+            idx = index.get_indexer(selector)
+            if np.any(idx == -1):
+                raise ValueError(f"Unexpected selector {index[idx == -1]}")
+
         return idx
 
-    def _parse_slicer(self, slicer: tuple) -> tuple:
+    def _parse_getitem_tuple(self, slicer: tuple) -> tuple:
         if not ((type(slicer) == tuple) and (len(slicer) in [3, 4])):
             raise ValueError(
                 "Invalid subset value. Provide 3 values in format <row, column, wl>"
                 "or 4 values in format <row, column, wl, True/False>"
             )
 
-        if len(slicer) == 3:
-            use_iloc = False
-        else:
+        use_iloc = False
+        if len(slicer) == 4:
             use_iloc = bool(slicer[3])
             slicer = slicer[:3]
 
-        rows, cols, wls = (
-            [x]
-            if (np.size(x) == 1) and (not isinstance(x, (slice, list, tuple)))
-            else x
-            for x in slicer
-        )
+        rows, cols, wls = slicer
 
-        # From wl to indices
-        if use_iloc:
-            row_selector = rows
-            col_selector = cols
-            wl_selector = wls
-        else:
-            row_selector = self._parse_getitem_selector(self.data.index, rows)
-            col_selector = self._parse_getitem_selector(self.data.columns, cols)
-            wl_selector = self._parse_getitem_selector(pd.Index(self.wl), wls)
+        # From labels to indices
+        row_selector = self._parse_getitem_single_selector(
+            self.data.index, rows, iloc=use_iloc
+        )
+        col_selector = self._parse_getitem_single_selector(
+            self.data.columns, cols, iloc=use_iloc
+        )
+        wl_selector = self._parse_getitem_single_selector(
+            pd.Index(self.wl), wls, iloc=use_iloc
+        )
 
         return row_selector, col_selector, wl_selector
 
-    def __setitem__(self, given: tuple[Any, Any, Any], value: Any) -> None:
-        # row_slice, col_slice, wl_slice = self._parse_slicer(given)
+    def __setitem__(self, given: Union[str, tuple], value: Any) -> None:
+        if isinstance(given, str):
+            return self.data.__setitem__(given, value)
 
-        # if _is_empty_slice(col_slice) and not _is_empty_slice(wl_slice):
-        #     self.spc[row_slice, wl_slice] = value
-        # elif not _is_empty_slice(col_slice) and _is_empty_slice(wl_slice):
-        #     self.data[row_slice, col_slice] = value
-        # else:
-        #     raise ValueError("Either data columns or wavelengths indexes must be `:`")
         raise NotImplementedError(
             "Not implemented. Please use `.data` or `.spc` directly."
         )
 
-    def __getitem__(self, given: tuple) -> "SpectraFrame":
-        row_slice, col_slice, wl_slice = self._parse_slicer(given)
+    def __getitem__(self, given: Union[str, tuple]) -> "SpectraFrame":
+        if isinstance(given, str):
+            return self.data[given]
+
+        row_slice, col_slice, wl_slice = self._parse_getitem_tuple(given)
         return SpectraFrame(
             spc=self.spc[row_slice, wl_slice],
             wl=self.wl[wl_slice],
             data=self.data.iloc[row_slice, col_slice],
         )
+
+    def __getattr__(self, name) -> pd.Series:
+        return getattr(self.data, name)
 
     # ----------------------------------------------------------------------
     # Arithmetic operations +, -, *, /, **, abs, round, ceil, etc.

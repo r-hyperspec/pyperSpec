@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from numpy.testing import assert_array_equal
-from pandas.testing import assert_frame_equal
+from pandas.testing import assert_frame_equal, assert_series_equal
 import pytest
 
 from pyspc import SpectraFrame
@@ -187,7 +187,7 @@ class TestSpectraFrameCopy:
         assert copied.data is not sf.data
 
 
-class TestSpectraFrameSlicers:
+class TestSpectraFrameItems:
     def sample_spectra_frame(self) -> SpectraFrame:
         spc = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         wl = np.array([400, 500, 600])
@@ -197,7 +197,6 @@ class TestSpectraFrameSlicers:
         )
         return SpectraFrame(spc, wl, data)
 
-    # Test cases for __getitem__
     def test_getitem_loc(self):
         frame = self.sample_spectra_frame()
 
@@ -231,7 +230,6 @@ class TestSpectraFrameSlicers:
         assert np.array_equal(result.wl, [400, 600])
         assert result.data.equals(frame.data.iloc[1:3, :])
 
-    # Test cases for __getitem__
     def test_getitem_iloc(self):
         frame = self.sample_spectra_frame()
 
@@ -265,6 +263,66 @@ class TestSpectraFrameSlicers:
         assert np.array_equal(result.wl, [400, 600])
         assert result.data.equals(frame.data.iloc[1:3, :])
 
+    def test_getitem_boolean_vectors(self):
+        frame = self.sample_spectra_frame()
+
+        # Test for rows (both loc and iloc)
+        assert_spectraframe_equal(
+            frame[[False, True, False], :, :],
+            frame[1, :, :, True],
+        )
+        assert_spectraframe_equal(
+            frame[[False, True, False], :, :, True],
+            frame[1, :, :, True],
+        )
+
+        # Test for data columns (both loc and iloc)
+        assert_spectraframe_equal(
+            frame[:, [False, True, False], :],
+            frame[:, 1, :, True],
+        )
+        assert_spectraframe_equal(
+            frame[:, [False, True, False], :, True],
+            frame[:, 1, :, True],
+        )
+
+        # Test for wl columns (both loc and iloc)
+        assert_spectraframe_equal(
+            frame[:, :, [False, True, False]],
+            frame[:, :, 1, True],
+        )
+        assert_spectraframe_equal(
+            frame[:, :, [False, True, False], True],
+            frame[:, :, 1, True],
+        )
+
+        # Test for pd.Series
+        assert_spectraframe_equal(
+            frame[frame.A == 11, :, :],
+            frame[1, :, :, True],
+        )
+
+        # Test for numpy arrays
+        assert_spectraframe_equal(
+            frame[np.array(frame.A == 11), :, :],
+            frame[1, :, :, True],
+        )
+
+    def test_getitem_single_string(self):
+        frame = self.sample_spectra_frame()
+        assert_series_equal(frame["A"], frame.data["A"])
+
+    def test_setitem_single_string(self):
+        frame = self.sample_spectra_frame()
+
+        # Test existing data column
+        frame["A"] = 5
+        assert_array_equal(frame.data["A"].values, [5, 5, 5])
+
+        # Test new data column
+        frame["A_new"] = 1
+        assert_array_equal(frame.data["A_new"].values, [1, 1, 1])
+
     # # Test cases for __setitem__
     # def test_spectraframe_setitem(self):
     #     frame = self.sample_spectra_frame()
@@ -287,6 +345,22 @@ class TestSpectraFrameSlicers:
     #     assert np.array_equal(
     #         frame.data.loc[1:2, :], np.array([[88.0, 88.0, 88.0], [88.0, 88.0, 88.0]])
     #     )
+
+
+class TestSpectraFrameAttrs:
+    def sample_spectra_frame(self) -> SpectraFrame:
+        spc = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        wl = np.array([400, 500, 600])
+        data = pd.DataFrame(
+            {"A": [10, 11, 12], "B": [13, 14, 15], "C": [16, 17, 18]},
+            index=[5, 6, 7],
+        )
+        return SpectraFrame(spc, wl, data)
+
+    def test_getattr(self):
+        frame = self.sample_spectra_frame()
+
+        assert_series_equal(frame.A, frame.data.A)
 
 
 class TestSpectraFrameApply:
