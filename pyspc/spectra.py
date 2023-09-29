@@ -460,62 +460,57 @@ class SpectraFrame:
     # TODO: It would be good to group the method declarations below
 
     def min(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanmin", axis, *args, **kwargs)
-        return self.apply("min", axis, *args, **kwargs)
+        func = "min" if not ignore_na else "nanmin"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def max(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanmax", axis, *args, **kwargs)
-        return self.apply("max", axis, *args, **kwargs)
+        func = "max" if not ignore_na else "nanmax"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def sum(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nansum", axis, *args, **kwargs)
-        return self.apply("sum", axis, *args, **kwargs)
+        func = "sum" if not ignore_na else "nansum"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def mean(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanmean", axis, *args, **kwargs)
-        return self.apply("mean", axis, *args, **kwargs)
+        func = "mean" if not ignore_na else "nanmean"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def std(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanstd", axis, *args, **kwargs)
-        return self.apply("std", axis, *args, **kwargs)
+        func = "std" if not ignore_na else "nanstd"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def median(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanmedian", axis, *args, **kwargs)
-        return self.apply("median", axis, *args, **kwargs)
+        func = "median" if not ignore_na else "nanmedian"
+        return self.apply(func, *args, groupby=groupby, axis=axis, **kwargs)
 
     def mad(
-        self, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
         if ignore_na:
             median = lambda x: np.nanmedian(x, *args, **kwargs)
         else:
             median = lambda x: np.median(x, *args, **kwargs)
-        return self.apply(lambda x: median(np.absolute(x - median(x))), axis)
+        return self.apply(
+            lambda x: median(np.absolute(x - median(x))), groupby=groupby, axis=axis
+        )
 
     def quantile(
-        self, q, axis: int = 1, ignore_na: bool = False, *args, **kwargs
+        self, q, *args, groupby=None, axis=1, ignore_na=False, **kwargs
     ) -> "SpectraFrame":
-        if ignore_na:
-            return self.apply("nanquantile", axis, q, *args, **kwargs)
-        return self.apply("quantile", axis, q, *args, **kwargs)
+        func = "quantile" if not ignore_na else "nanquantile"
+        return self.apply(func, q, *args, groupby=groupby, axis=axis, **kwargs)
 
     # ----------------------------------------------------------------------
     # Format conversion
