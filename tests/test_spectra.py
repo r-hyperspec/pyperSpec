@@ -554,3 +554,41 @@ class TestSpectraFrameApplyGroupBy:
             np.quantile, [0.33, 0.67], groupby=["B", "A"], method="midpoint"
         )
         assert_spectraframe_equal(result, expected)
+
+
+class TestSpectraFramePlot:
+    def sample_spectra_frame(self) -> SpectraFrame:
+        return SpectraFrame(
+            [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                [9, 10, 11, 12],
+                [13, 14, 15, 16],
+                [17, 18, 19, 20],
+                [21, 22, 23, 24],
+            ],
+            wl=[400, 600, 800, 1000],
+            data=pd.DataFrame(
+                {"A": np.repeat([10, 11, 12], 2), "B": np.repeat(["B1", "B2"], 3)},
+                index=list("abcdef"),
+            ),
+        )
+
+    def test_plots(self):
+        frame = self.sample_spectra_frame()
+
+        # Plot all
+        frame.plot()
+
+        # Plot in one row
+        frame.plot(rows="B")
+        frame.plot(rows=[1, 2, 3, 4, 5, 6])
+
+        # Plot in one column
+        frame.plot(columns="B")
+        frame.plot(columns=[1, 2, 3, 4, 5, 6])
+
+        # Plot 2d grid
+        frame.plot(rows="B", columns="A")
+        frame.plot(rows="B", columns=[1, 2, 3, 4, 5, 6])
+        frame.plot(columns="B", rows=[1, 2, 3, 4, 5, 6])

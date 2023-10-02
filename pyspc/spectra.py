@@ -1,8 +1,11 @@
 from typing import Any, Optional, Union, Tuple, Callable
 
+from numpy.typing import ArrayLike
 import numpy as np
 import pandas as pd
 import scipy
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 __all__ = ["SpectraFrame"]
 
@@ -542,6 +545,107 @@ class SpectraFrame:
             )
 
         return df
+
+    # ----------------------------------------------------------------------
+    # Plotting
+    def _parse_string_or_vector_param(self, param: Union[str, ArrayLike]) -> pd.Series:
+        if isinstance(param, str) and (param in self.data.columns):
+            return self.data[param]
+
+        if len(param) == self.nspc:
+            return pd.Series(param, index=self.data.index)
+
+        raise TypeError(
+            "Incorrect parameter. It must be either a string of a data "
+            "column name or array-like (i.e. np.array, list) of "
+            "lenght equal to number of spectra. "
+        )
+
+    def _prepare_plot_param(self, param: Union[None, str, ArrayLike]) -> pd.Series:
+        if param is None:
+            param = pd.Series(
+                ["dummy"] * self.nspc, index=self.data.index, dtype="category"
+            )
+        else:
+            param = self._parse_string_or_vector_param(param)
+
+        param = (
+            param.astype("category")
+            .cat.add_categories("NA")
+            .fillna("NA")
+            .cat.remove_unused_categories()
+        )
+
+        return param
+
+    def plot(
+        self,
+        rows=None,
+        columns=None,
+        colors=None,
+        palette: Optional[list[str]] = None,
+        **kwargs: Any,
+    ):
+        # Split **kwargs
+        # TODO: Either add different kw params like https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.subplots.html
+        # or infer from the name of kwarg where to put it.
+        show_legend = kwargs.get("legend", colors is not None)
+        sharex = kwargs.get("sharex", True)
+        sharey = kwargs.get("sharey", True)
+
+        # Convert to series all 'string or vector' params
+        rows_series = self._prepare_plot_param(rows)
+        cols_series = self._prepare_plot_param(columns)
+        colorby_series = self._prepare_plot_param(colors)
+
+        nrows = len(rows_series.cat.categories)
+        ncols = len(cols_series.cat.categories)
+        ncolors = len(colorby_series.cat.categories)
+
+        # Prepare colors
+        if palette is None:
+            palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        cmap = dict(zip(colorby_series.cat.categories, palette[:ncolors]))
+        cmap.update({"NA": "gray"})
+        colors_series = colorby_series.cat.rename_categories(cmap)
+
+        fig, axs = plt.subplots(
+            nrows, ncols, squeeze=False, sharex=sharex, sharey=sharey, layout="tight"
+        )
+
+        # Prepare legend lines if needed
+        legend_lines = [
+            Line2D([0], [0], color=c, lw=4) for c in colors_series.cat.categories
+        ]
+
+        # For each combination of row and column categories
+        for i, vrow in enumerate(rows_series.cat.categories):
+            for j, vcol in enumerate(cols_series.cat.categories):
+                # Filter all spectra related to the current subplot
+                rowfilter = np.array((rows_series == vrow) & (cols_series == vcol))
+                if np.any(rowfilter):
+                    self.to_dataframe().iloc[rowfilter, : self.nwl].T.plot(
+                        kind="line",
+                        ax=axs[i, j],
+                        color=colors_series[rowfilter],
+                        **kwargs,
+                    )
+
+                # Add legend if needed
+                if show_legend:
+                    axs[i, j].legend(legend_lines, colorby_series.cat.categories)
+                else:
+                    axs[i, j].legend().set_visible(False)
+
+                axs[i, j].grid()
+
+                # For the first rows and columns set titles
+                if (i == 0) and (columns is not None):
+                    axs[i, j].set_title(str(vcol))
+                if (j == 0) and (rows is not None):
+                    axs[i, j].set_ylabel(str(vrow))
+
+        return fig, axs
 
     # ----------------------------------------------------------------------
     def _to_print_dataframe(self) -> pd.DataFrame:
