@@ -608,3 +608,10 @@ class TestSpectraFramePlot:
         frame.plot(rows="B", columns="A")
         frame.plot(rows="B", columns=[1, 2, 3, 4, 5, 6])
         frame.plot(columns="B", rows=[1, 2, 3, 4, 5, 6])
+
+
+class TestSpectraFrameMisc:
+    def test_sample(self):
+        sf = SpectraFrame(np.arange(5 * 3).reshape((5, 3)), data={"A": list("abcde")})
+        np.random.seed(1)
+        assert_spectraframe_equal(sf.sample(2), sf[[1, 2], :, :, True])

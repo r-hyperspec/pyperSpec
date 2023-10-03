@@ -556,7 +556,7 @@ class SpectraFrame:
     # ----------------------------------------------------------------------
     # Misc.
     def sample(self, n: int, replace: bool = False) -> "SpectraFrame":
-        indx = np.random.choice(self.nspc, n=n, replace=replace)
+        indx = np.random.choice(self.nspc, size=n, replace=replace)
         return self[np.sort(indx), :, :, True]
 
     # ----------------------------------------------------------------------
