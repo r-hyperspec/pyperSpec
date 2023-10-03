@@ -547,6 +547,12 @@ class SpectraFrame:
         return df
 
     # ----------------------------------------------------------------------
+    # Misc.
+    def sample(self, n: int, replace: bool = False) -> "SpectraFrame":
+        indx = np.random.choice(self.nspc, n=n, replace=replace)
+        return self[np.sort(indx), :, :, True]
+
+    # ----------------------------------------------------------------------
     # Plotting
     def _parse_string_or_vector_param(self, param: Union[str, ArrayLike]) -> pd.Series:
         if isinstance(param, str) and (param in self.data.columns):
