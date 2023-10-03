@@ -436,6 +436,14 @@ class TestSpectraFrameApply:
         assert np.array_equal(result.wl, [0, 1])
         assert_frame_equal(result.data, frame.data)
 
+    def test_infer_wl(self):
+        frame = self.sample_spectra_frame()
+        custom_function = lambda x: x - np.min(x)
+
+        # Apply a custom callable function with axis=1
+        result = frame.apply(custom_function, axis=1)
+        assert np.array_equal(result.wl, frame.wl)
+
 
 class TestSpectraFrameApplyGroupBy:
     def sample_spectra_frame(self) -> SpectraFrame:
@@ -554,6 +562,14 @@ class TestSpectraFrameApplyGroupBy:
             np.quantile, [0.33, 0.67], groupby=["B", "A"], method="midpoint"
         )
         assert_spectraframe_equal(result, expected)
+
+    def test_infer_wl(self):
+        frame = self.sample_spectra_frame()
+        custom_function = lambda x: x - np.min(x)
+
+        # Apply a custom callable function with axis=1
+        result = frame.apply(custom_function, groupby=["B"], axis=1)
+        assert np.array_equal(result.wl, frame.wl)
 
 
 class TestSpectraFramePlot:

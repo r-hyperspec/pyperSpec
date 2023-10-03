@@ -395,7 +395,7 @@ class SpectraFrame:
         func: Union[str, callable],
         *args,
         groupby: Union[str, list[str]] = None,
-        axis: int = 1,
+        axis: int = 0,
         **kwargs,
     ) -> "SpectraFrame":
         """Apply function to the spectral data
@@ -417,7 +417,8 @@ class SpectraFrame:
         SpectraFrame
             Output spectral frame where
             * `out.spc` is the results of `func`
-            * `out.wl` either the same (axis=0) or range 0..N (axis=1)
+            * `out.wl` either the same (axis=0 OR axis=1 and `nwl` matches)
+              or range 0..N (axis=1 and `nwl` does not match)
             * `out.data` The same if axis=1. If axis=0, either empty (no grouping)
                 or represents the grouping.
         """
@@ -455,6 +456,12 @@ class SpectraFrame:
             # Combine
             new_spc = np.concatenate(spc_list, axis=0)
             new_data = pd.concat(data_list, axis=0, ignore_index=True)
+
+        # If the applied function returns same number of wavelenghts
+        # we assume that wavelengths are the same, e.g. baseline,
+        # smoothing, etc.
+        if (new_wl is None) and (new_spc.shape[1] == self.nwl):
+            new_wl = self.wl
 
         return SpectraFrame(new_spc, wl=new_wl, data=new_data)
 
