@@ -324,27 +324,31 @@ class TestSpectraFrameItems:
         assert_array_equal(frame.data["A_new"].values, [1, 1, 1])
 
     # # Test cases for __setitem__
-    # def test_spectraframe_setitem(self):
-    #     frame = self.sample_spectra_frame()
+    def test_spectraframe_setitem(self):
+        frame = self.sample_spectra_frame()
 
-    #     # Set specific rows, columns, and wavelengths
-    #     frame[0, "A", 500] = 99.0
-    #     assert frame.spc[0, 1] == 99.0
-    #     assert frame.data.loc[0, "A"] == 99.0
+        # Set specific rows, columns, and wavelengths
+        with pytest.raises(ValueError):
+            frame[5, "A", 500] = 99.0
+            frame[5, :, :] = 99.0
 
-    #     # Set specific rows and wavelengths, all columns
-    #     frame[1:3, :, 500] = 77.0
-    #     assert np.array_equal(frame.spc[1:3, 1], np.array([77.0, 77.0]))
-    #     assert np.array_equal(frame.data.loc[1:2, "A"], np.array([77.0, 77.0]))
+        # Set specific rows and wavelengths, all columns
+        frame2 = frame.copy()
+        frame2[6:8, :, 500] = 77.0
+        assert np.array_equal(frame2.spc[1:3, 1], np.array([77.0, 77.0]))
+        assert_frame_equal(frame2.data, frame.data)
 
-    #     # Set specific rows, all columns, and a wavelength range
-    #     frame[1:3, :, 400:600] = 88.0
-    #     assert np.array_equal(
-    #         frame.spc[1:3, :], np.array([[88.0, 88.0, 88.0], [88.0, 88.0, 88.0]])
-    #     )
-    #     assert np.array_equal(
-    #         frame.data.loc[1:2, :], np.array([[88.0, 88.0, 88.0], [88.0, 88.0, 88.0]])
-    #     )
+        # Set specific rows, all columns, and a wavelength range
+        frame2 = frame.copy()
+        frame2[6:8, :, 400:600] = 88.0
+        assert np.array_equal(frame2.spc[1:3, :], 88.0 * np.ones((2, 3)))
+        assert_frame_equal(frame2.data, frame.data)
+
+        # Set specific rows, specific columns, and all wavelengths
+        frame2 = frame.copy()
+        frame2[6:8, "A":"B", :] = 0
+        assert_array_equal(frame2.spc, frame.spc)
+        assert_array_equal(frame2.data.loc[6:8, "A":"B"].values, np.zeros((2, 2)))
 
 
 class TestSpectraFrameAttrs:

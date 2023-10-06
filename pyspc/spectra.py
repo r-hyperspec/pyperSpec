@@ -10,6 +10,16 @@ from matplotlib.lines import Line2D
 __all__ = ["SpectraFrame"]
 
 
+def _is_empty_slice(param: Any) -> bool:
+    """Is `param` an empty slice"""
+    return (
+        isinstance(param, slice)
+        and (param.start is None)
+        and (param.stop is None)
+        and (param.step is None)
+    )
+
+
 class SpectraFrame:
     # ----------------------------------------------------------------------
     # Constructor
@@ -128,7 +138,7 @@ class SpectraFrame:
     ) -> Union[slice, list]:
         # If selector is slicer like 400:600 or 0:8:2
         if isinstance(selector, slice):
-            if iloc:
+            if _is_empty_slice(selector) or iloc:
                 return selector
             else:
                 return index.slice_indexer(selector.start, selector.stop, selector.step)
@@ -185,9 +195,16 @@ class SpectraFrame:
         if isinstance(given, str):
             return self.data.__setitem__(given, value)
 
-        raise NotImplementedError(
-            "Not implemented. Please use `.data` or `.spc` directly."
-        )
+        row_slice, col_slice, wl_slice = self._parse_getitem_tuple(given)
+        if _is_empty_slice(col_slice) and not _is_empty_slice(wl_slice):
+            self.spc[row_slice, col_slice] = value
+        elif not _is_empty_slice(col_slice) and _is_empty_slice(wl_slice):
+            self.data.iloc[row_slice, col_slice] = value
+        else:
+            raise ValueError(
+                "Invalid slicing. Either data columns or "
+                "wavelengths indexes must be `:`"
+            )
 
     def __getitem__(self, given: Union[str, tuple]) -> "SpectraFrame":
         if isinstance(given, str):
@@ -562,6 +579,9 @@ class SpectraFrame:
     # ----------------------------------------------------------------------
     # Plotting
     def _parse_string_or_vector_param(self, param: Union[str, ArrayLike]) -> pd.Series:
+        if isinstance(param, str) and (param == "index"):
+            return pd.Series(self.data.index)
+
         if isinstance(param, str) and (param in self.data.columns):
             return self.data[param]
 
@@ -569,9 +589,8 @@ class SpectraFrame:
             return pd.Series(param, index=self.data.index)
 
         raise TypeError(
-            "Incorrect parameter. It must be either a string of a data "
-            "column name or array-like (i.e. np.array, list) of "
-            "lenght equal to number of spectra. "
+            "Invalid parameter. It must be either 'index' or data column name, or"
+            "array-like (i.e. np.array, list) of lenght equal to number of spectra."
         )
 
     def _prepare_plot_param(self, param: Union[None, str, ArrayLike]) -> pd.Series:
