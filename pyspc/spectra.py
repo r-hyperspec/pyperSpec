@@ -197,7 +197,7 @@ class SpectraFrame:
 
         row_slice, col_slice, wl_slice = self._parse_getitem_tuple(given)
         if _is_empty_slice(col_slice) and not _is_empty_slice(wl_slice):
-            self.spc[row_slice, col_slice] = value
+            self.spc[row_slice, wl_slice] = value
         elif not _is_empty_slice(col_slice) and _is_empty_slice(wl_slice):
             self.data.iloc[row_slice, col_slice] = value
         else:
