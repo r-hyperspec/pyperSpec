@@ -576,6 +576,10 @@ class SpectraFrame:
         indx = np.random.choice(self.nspc, size=n, replace=replace)
         return self[np.sort(indx), :, :, True]
 
+    def __sizeof__(self):
+        """Estimate the total memory usage"""
+        return self.spc.__sizeof__() + self.data.__sizeof__() + self.wl.__sizeof__()
+
     # ----------------------------------------------------------------------
     # Plotting
     def _parse_string_or_vector_param(self, param: Union[str, ArrayLike]) -> pd.Series:
