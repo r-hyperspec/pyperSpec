@@ -452,7 +452,7 @@ class SpectraFrame:
             new_spc = self._apply_func(func, *args, axis=axis, **kwargs)
         else:
             # Prepare a dataframe for groupby aggregation
-            grouped = self.to_dataframe().groupby(groupby)[self.wl]
+            grouped = self.to_pandas().groupby(groupby)[self.wl]
 
             # Prepare list of group names as dicts {'column name': 'column value', ...}
             if len(groupby) > 1:
@@ -542,7 +542,7 @@ class SpectraFrame:
     # ----------------------------------------------------------------------
     # Format conversion
 
-    def to_dataframe(self, multiindex=False) -> pd.DataFrame:
+    def to_pandas(self, multiindex=False, string_names=False) -> pd.DataFrame:
         """Convert to a pandas DataFrame
 
         Parameters
@@ -562,10 +562,13 @@ class SpectraFrame:
             axis=1,
         )
 
+        if string_names:
+            df.columns = df.columns.map(str)
+
         if multiindex:
             df.columns = pd.MultiIndex.from_tuples(
-                [("spc", wl) for wl in self.wl]
-                + [("data", col) for col in self.data.columns]
+                [("spc", wl) for wl in df.columns[: self.nwl]]
+                + [("data", col) for col in df.columns[self.nwl :]]
             )
 
         return df
@@ -660,7 +663,7 @@ class SpectraFrame:
                 # Filter all spectra related to the current subplot
                 rowfilter = np.array((rows_series == vrow) & (cols_series == vcol))
                 if np.any(rowfilter):
-                    self.to_dataframe().iloc[rowfilter, : self.nwl].T.plot(
+                    self.to_pandas().iloc[rowfilter, : self.nwl].T.plot(
                         kind="line",
                         ax=axs[i, j],
                         color=colors_series[rowfilter],
@@ -685,7 +688,7 @@ class SpectraFrame:
 
     # ----------------------------------------------------------------------
     def _to_print_dataframe(self) -> pd.DataFrame:
-        print_df = self[:, :, [0, -1], True].to_dataframe()
+        print_df = self[:, :, [0, -1], True].to_pandas()
         print_df.insert(loc=1, column="...", value="...")
         return print_df
 
