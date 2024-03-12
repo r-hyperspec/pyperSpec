@@ -298,21 +298,40 @@ class SpectraFrame:
     # ----------------------------------------------------------------------
     # Wavelengths
 
-    def interpolate(self, new_wl: np.ndarray, **kwargs) -> "SpectraFrame":
-        interpolator = scipy.interpolate.interp1d(x=self.wl, y=self.spc, **kwargs)
-        new_spc = interpolator(new_wl)
-        return SpectraFrame(new_spc, wl=new_wl, data=self.data)
-
-    def set_wl(
-        self, new_wl: np.ndarray, interpolate: bool = False, **kwargs
+    def resample_wl(
+        self, new_wl: np.ndarray, method="interp1d", **kwargs
     ) -> "SpectraFrame":
-        if interpolate:
-            return self.interpolate(new_wl, **kwargs)
-        if len(new_wl) != self.nwl:
-            raise ValueError(
-                "Length of the new wavelengths array does not match the data"
-            )
-        return SpectraFrame(self.spc, wl=new_wl, data=self.data)
+        """Resample wavelengths, i.e. shift wavelenghts with interpolation
+
+        Parameters
+        ----------
+        new_wl : np.ndarray
+            New wavenumbers
+        method : str, optional
+            Method for interpolation. Currently only "interp1d" is supported.
+            Which is using `scipy.interpolate.interp1d` function.
+        kwargs : dict, optional
+            Additional parameters to be passed to the interpolator function.
+
+        Returns
+        -------
+        SpectraFrame
+            A new SpectraFrame object with `new_wl` as wavenumbers, and
+            interpolated signal values as spectral data. `*.data` part
+            remains the same.
+
+        Raises
+        ------
+        NotImplementedError
+            Unimplemented method of interpolation.
+        """
+        if method == "interp1d":
+            interpolator = scipy.interpolate.interp1d(x=self.wl, y=self.spc, **kwargs)
+            new_spc = interpolator(new_wl)
+        else:
+            raise NotImplementedError("Other methods not available yet")
+
+        return SpectraFrame(new_spc, wl=new_wl, data=self.data)
 
     # ----------------------------------------------------------------------
     # Stats & Applys
