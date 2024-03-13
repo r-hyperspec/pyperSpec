@@ -6,6 +6,7 @@ import pandas as pd
 import scipy
 import pybaselines
 import matplotlib.pyplot as plt
+from matplotlib.colors import rgb2hex
 from matplotlib.lines import Line2D
 
 from .baselines import rubberband
@@ -761,6 +762,7 @@ class SpectraFrame:
         columns=None,
         colors=None,
         palette: Optional[list[str]] = None,
+        fig=None,
         **kwargs: Any,
     ):
         # Split **kwargs
@@ -782,13 +784,30 @@ class SpectraFrame:
         # Prepare colors
         if palette is None:
             palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+            if ncolors > len(palette):
+                palette = "hsv"
+
+        if isinstance(palette, str):
+            palette = [
+                rgb2hex(plt.get_cmap(palette, ncolors)(i)) for i in range(ncolors)
+            ]
+
         cmap = dict(zip(colorby_series.cat.categories, palette[:ncolors]))
         cmap.update({"NA": "gray"})
         colors_series = colorby_series.cat.rename_categories(cmap)
 
-        fig, axs = plt.subplots(
-            nrows, ncols, squeeze=False, sharex=sharex, sharey=sharey, layout="tight"
-        )
+        # Get the figure and the axes for plot
+        if fig is None:
+            fig, axs = plt.subplots(
+                nrows,
+                ncols,
+                squeeze=False,
+                sharex=sharex,
+                sharey=sharey,
+                layout="tight",
+            )
+        else:
+            axs = np.array(fig.get_axes()).reshape((nrows, ncols))
 
         # Prepare legend lines if needed
         legend_lines = [
