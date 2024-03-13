@@ -4,8 +4,11 @@ from numpy.typing import ArrayLike
 import numpy as np
 import pandas as pd
 import scipy
+import pybaselines
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+
+from .baselines import rubberband
 
 __all__ = ["SpectraFrame"]
 
@@ -501,6 +504,14 @@ class SpectraFrame:
 
         return SpectraFrame(new_spc, wl=new_wl, data=new_data)
 
+    def area(self) -> "SpectraFrame":
+        """Calculate area under the spectra"""
+        return SpectraFrame(
+            scipy.integrate.trapezoid(self.spc, x=self.wl, axis=1).reshape((-1, 1)),
+            wl=None,
+            data=self.data,
+        )
+
     # ----------------------------------------------------------------------
     # Dispatching to numpy methods
     # TODO: It would be good to group the method declarations below
@@ -557,6 +568,114 @@ class SpectraFrame:
     ) -> "SpectraFrame":
         func = "quantile" if not ignore_na else "nanquantile"
         return self.apply(func, q, *args, groupby=groupby, axis=axis, **kwargs)
+
+    # ----------------------------------------------------------------------
+    # Manipulations
+    def normalize(self, method: str, ignore_na: bool = True) -> "SpectraFrame":
+        """Dispatcher for spectra normalization
+
+        Parameters
+        ----------
+        method : str
+            Method of normaliztion. Available options: '01', 'area', 'vector', 'mean'
+        ignore_na : bool, optional
+            Ignore NaN values in the data, by default True
+
+        Returns
+        -------
+        SpectraFrame
+            A new SpectraFrame with normalized values
+
+        Raises
+        ------
+        NotImplementedError
+            Unknown or not implemented methods, e.g. peak normalization
+        """
+        spc = self.copy()
+        if method == "01":
+            spc = spc - spc.min(axis=1, ignore_na=ignore_na)
+            spc = spc / spc.max(axis=1, ignore_na=ignore_na)
+        elif method == "area":
+            spc = spc / spc.area()
+        elif method == "peak":
+            raise NotImplementedError("Method not implemented yet")
+        elif method == "vector":
+            if ignore_na:
+                spc = spc / np.sqrt(
+                    np.nansum(np.power(spc.spc, 2), axis=1, keepdims=True)
+                )
+            else:
+                spc = spc / np.sqrt(np.sum(np.power(spc.spc, 2), axis=1, keepdims=True))
+        elif method == "mean":
+            spc = spc / spc.mean(axis=1, ignore_na=ignore_na)
+
+        return spc
+
+    def smooth(self, method: str = "savgol", **kwargs) -> "SpectraFrame":
+        """Dispatcher for spectra smoothing
+
+        Parameters
+        ----------
+        method : str, optional
+            Method of smoothing. Currently, only "savgol" is avalialbe
+        kwargs : dict
+            Additional parameters to pass to the smoothing method
+
+        Returns
+        -------
+        SpectraFrame
+            A new frame with smoothed values
+
+        Raises
+        ------
+        NotImplementedError
+            Unknown or unimplemented smoothing method
+        """
+        spc = self.copy()
+        if method == "savgol":
+            spc.spc = scipy.signal.savgol_filter(spc.spc, **kwargs)
+        else:
+            raise NotImplementedError("Method is not implemented yet")
+
+        return spc
+
+    def baseline(self, method: str, **kwargs) -> "SpectraFrame":
+        """Dispatcher for spectra baseline estimation
+
+        Dispatches baseline correction to the corresponding method
+        in `pybaselines` package.
+        In addition, "rubberband" method is available.
+
+        Parameters
+        ----------
+        method : str
+            A name of the method in `pybaselines` package (e.g. "airpls", "snip"),
+            or "rubberband"
+        kwargs: dict
+            Additional parameters to pass to the baseline correction method
+
+        Returns
+        -------
+        SpectraFrame
+            A frame of estimated baselines
+
+        Raises
+        ------
+        ValueError
+            Unknown baseline method provided
+        """
+        baseline_fitter = pybaselines.Baseline(x_data=self.wl)
+        if hasattr(baseline_fitter, method):
+            baseline_method = getattr(baseline_fitter, method)
+            baseline_func = lambda y: baseline_method(y, **kwargs)[0]
+        elif method == "rubberband":
+            baseline_func = lambda y: rubberband(self.wl, y, **kwargs)
+        else:
+            raise ValueError(
+                "Unknown method. Method must be either "
+                "from `pybaselines` or 'rubberband'"
+            )
+        return self.apply(baseline_func, axis=1)
 
     # ----------------------------------------------------------------------
     # Format conversion
