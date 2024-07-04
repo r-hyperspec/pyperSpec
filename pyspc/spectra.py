@@ -79,15 +79,15 @@ class SpectraFrame:
         if isinstance(param, str) and (param in self.data.columns):
             return self.data[param]
         elif isinstance(param, pd.Series) and (param.shape[0] == self.nspc):
-            return param
+            return pd.Series(param.values, index=self.index)
         elif (
             isinstance(param, np.ndarray)
             and (param.ndim == 1)
             and (param.shape[0] == self.nspc)
         ):
-            return pd.Series(param)
+            return pd.Series(param, index=self.index)
         elif isinstance(param, (list, tuple)) and (len(param) == self.nspc):
-            return pd.Series(param)
+            return pd.Series(param, index=self.index)
         else:
             raise TypeError(
                 "Invalid parameter. It must be either a string of a data "
@@ -478,10 +478,11 @@ class SpectraFrame:
             grouped = self.to_pandas().groupby(groupby)[self.wl]
 
             # Prepare list of group names as dicts {'column name': 'column value', ...}
-            if len(groupby) > 1:
-                groups = [dict(zip(groupby, gr)) for gr in grouped.groups.keys()]
+            keys = [i for i, _ in grouped]
+            if len(groupby) > 1:    
+                groups = [dict(zip(groupby, gr)) for gr in keys]
             else:
-                groups = [{groupby[0]: gr} for gr in grouped.groups.keys()]
+                groups = [{groupby[0]: gr} for gr in keys]
 
             # Apply to each group
             spc_list = [
@@ -735,7 +736,7 @@ class SpectraFrame:
             return pd.Series(param, index=self.data.index)
 
         raise TypeError(
-            "Invalid parameter. It must be either 'index' or data column name, or"
+            "Invalid parameter. It must be either 'index' or data column name, or "
             "array-like (i.e. np.array, list) of lenght equal to number of spectra."
         )
 
@@ -785,7 +786,7 @@ class SpectraFrame:
         if palette is None:
             palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
             if ncolors > len(palette):
-                palette = "hsv"
+                palette = "viridis"
 
         if isinstance(palette, str):
             palette = [
@@ -818,7 +819,9 @@ class SpectraFrame:
         for i, vrow in enumerate(rows_series.cat.categories):
             for j, vcol in enumerate(cols_series.cat.categories):
                 # Filter all spectra related to the current subplot
-                rowfilter = np.array((rows_series == vrow) & (cols_series == vcol))
+                rowfilter = np.array(rows_series == vrow) & np.array(
+                    cols_series == vcol
+                )
                 if np.any(rowfilter):
                     self.to_pandas().iloc[rowfilter, : self.nwl].T.plot(
                         kind="line",
@@ -832,8 +835,6 @@ class SpectraFrame:
                     axs[i, j].legend(legend_lines, colorby_series.cat.categories)
                 else:
                     axs[i, j].legend().set_visible(False)
-
-                axs[i, j].grid()
 
                 # For the first rows and columns set titles
                 if (i == 0) and (columns is not None):
