@@ -224,6 +224,11 @@ class SpectraFrame:
     def __getattr__(self, name) -> pd.Series:
         return getattr(self.data, name)
 
+    def query(self, expr: str) -> "SpectraFrame":
+        """Filter spectra using pandas DataFrame.query"""
+        indices = self.data.query(expr).index
+        return self[indices, :, :]
+
     # ----------------------------------------------------------------------
     # Arithmetic operations +, -, *, /, **, abs, round, ceil, etc.
 
