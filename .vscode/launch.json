@@ -2,7 +2,7 @@
     "configurations": [
         {
             "name": "Python: Tests",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "args": [

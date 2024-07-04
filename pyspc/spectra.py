@@ -484,7 +484,7 @@ class SpectraFrame:
 
             # Prepare list of group names as dicts {'column name': 'column value', ...}
             keys = [i for i, _ in grouped]
-            if len(groupby) > 1:    
+            if len(groupby) > 1:
                 groups = [dict(zip(groupby, gr)) for gr in keys]
             else:
                 groups = [{groupby[0]: gr} for gr in keys]
