@@ -1,0 +1,7 @@
+site_name: pyperspec
+
+theme:
+  name: "material"
+
+plugins:
+  - mkdocstrings
