@@ -484,10 +484,7 @@ class SpectraFrame:
 
             # Prepare list of group names as dicts {'column name': 'column value', ...}
             keys = [i for i, _ in grouped]
-            if len(groupby) > 1:
-                groups = [dict(zip(groupby, gr)) for gr in keys]
-            else:
-                groups = [{groupby[0]: gr} for gr in keys]
+            groups = [dict(zip(groupby, gr)) for gr in keys]
 
             # Apply to each group
             spc_list = [
@@ -683,6 +680,15 @@ class SpectraFrame:
                 "from `pybaselines` or 'rubberband'"
             )
         return self.apply(baseline_func, axis=1)
+
+    def sbaseline(self, method: str, **kwargs) -> "SpectraFrame":
+        """Subtract baseline from the spectra
+
+        Same as `.baseline()`, but returns a new frame with subtracted baseline.
+        A shortcut for `SpectraFrame - SpectraFrame.baseline(...)`, allowing
+        to chain methods, e.g. `sf.smooth().sbaseline("snip").normalize()`.
+        """
+        return self - self.baseline(method, **kwargs).spc
 
     # ----------------------------------------------------------------------
     # Format conversion

@@ -495,7 +495,7 @@ class TestSpectraFrameApplyGroupBy:
             data=pd.DataFrame(
                 {
                     "B": ["B1", "B1", "B2", "B2"],
-                    "A": [10, 11, 11, 12],
+                    "A": np.array([10, 11, 11, 12], dtype=frame.A.dtype),
                     "group_index": [0, 0, 0, 0],
                 }
             ),
@@ -549,7 +549,7 @@ class TestSpectraFrameApplyGroupBy:
             data=pd.DataFrame(
                 {
                     "B": np.repeat(["B1", "B2"], 4),
-                    "A": np.repeat([10, 11, 11, 12], 2).astype(np.int64),
+                    "A": np.repeat([10, 11, 11, 12], 2).astype(frame.A.dtype),
                     "group_index": [0, 1] * 4,
                 }
             ),
@@ -619,3 +619,17 @@ class TestSpectraFrameMisc:
         sf = SpectraFrame(np.arange(5 * 3).reshape((5, 3)), data={"A": list("abcde")})
         np.random.seed(1)
         assert_spectraframe_equal(sf.sample(2), sf[[1, 2], :, :, True])
+
+
+class TestSpectraFrameBaseline:
+    def test_baseline(self):
+        wl = 400 + np.arange(0, 10, 2)
+        signal = np.array([0, 5, 10, 5, 0])
+        bl = 10 + 5 * (wl - 400)
+        sf = SpectraFrame(signal + bl, wl=wl)
+
+        result = sf.baseline("rubberband")
+        assert np.array_equal(result.spc[0, :], bl)
+
+        result = sf.sbaseline("rubberband")
+        assert np.array_equal(result.spc[0, :], signal)
