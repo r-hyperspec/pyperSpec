@@ -32,6 +32,17 @@ from .utils import is_iqr_outlier
 
 
 def _fillna(y: np.ndarray) -> np.ndarray:
+    """
+    Fills NaN values in an array using linear interpolation.
+
+    Parameters:
+        y : np.ndarray
+            The input array to fill NaN values.
+
+    Returns:
+        np.ndarray
+            The array with NaN values filled using linear interpolation.
+    """
     x = np.arange(len(y))
     is_nan = np.isnan(y)
 
@@ -87,6 +98,27 @@ def find_spikes(
     threshold: float = None,
     iqr_factor: float = 7,
 ):
+    """
+    Detect spikes in input data based on the specified outlier detection method.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Input data
+    n_diff : int, optional
+        Order of differentiation, by default 0
+    method : str, optional
+        Outlier detection method, by default "zscore"
+    threshold : float, optional
+        Threshold value for outlier/spike detection, by default None
+    iqr_factor : float, optional
+        Factor for the IQR calculation, by default 7
+
+    Returns
+    -------
+    np.ndarray
+        A boolean matrix indicating the spike locations
+    """
     if y.ndim == 1:
         y = y.reshape((1, -1))
 
