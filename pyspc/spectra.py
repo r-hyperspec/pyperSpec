@@ -834,7 +834,8 @@ class SpectraFrame:
                     cols_series == vcol
                 )
                 if np.any(rowfilter):
-                    self.to_pandas().iloc[rowfilter, : self.nwl].T.plot(
+                    subdf = pd.DataFrame(self.spc[rowfilter, :], columns=self.wl)
+                    subdf.T.plot(
                         kind="line",
                         ax=axs[i, j],
                         color=colors_series[rowfilter],
