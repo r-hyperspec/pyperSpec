@@ -6,7 +6,7 @@ a function aroud maximum value.
 Other functions related to peak fitting can be found in scipy.signal.*
 """
 
-from typing import Any, Callable, Union
+from typing import Any, Callable, Union, Optional
 
 import numpy as np
 import pandas as pd
@@ -195,7 +195,10 @@ METHODS_MAPPING = {
 
 
 def around_max_peak_fit(
-    x: np.ndarray, y: np.ndarray, fit_func: Union[str, Callable], window: int = None
+    x: np.ndarray,
+    y: np.ndarray,
+    fit_func: Union[str, Callable] = "max",
+    window: Optional[int] = None,
 ) -> pd.DataFrame:
     """Fit a  peak using `window` points around the global maximum value
 

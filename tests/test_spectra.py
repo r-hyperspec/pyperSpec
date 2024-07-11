@@ -633,3 +633,29 @@ class TestSpectraFrameBaseline:
 
         result = sf.sbaseline("rubberband")
         assert np.array_equal(result.spc[0, :], signal)
+
+
+class TestSpectaFrameNormalize:
+    def test_normalize(self):
+        np.random.seed(321)
+        sf = SpectraFrame(
+            np.random.randn(5 * 10).reshape((5, -1)),
+            wl=np.arange(600, 1600, 100),
+            data={"A": list("abcde")},
+        )
+
+        result = sf.normalize("01")
+        np.testing.assert_almost_equal(np.min(result.spc, axis=1), 0)
+        np.testing.assert_almost_equal(np.max(result.spc, axis=1), 1)
+
+        result = sf.normalize("mean")
+        np.testing.assert_almost_equal(np.mean(result.spc, axis=1), 1)
+
+        result = sf.normalize("vector")
+        np.testing.assert_almost_equal(np.sum(np.power(result.spc, 2), axis=1), 1)
+
+        result = sf.normalize("peak")
+        np.testing.assert_almost_equal(np.max(result.spc, axis=1), 1)
+
+        result = sf.normalize("peak", peak_range=(800, 1200))
+        np.testing.assert_almost_equal(np.max(result[:, :, 800:1200].spc, axis=1), 1)

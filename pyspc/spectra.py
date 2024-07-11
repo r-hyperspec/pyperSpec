@@ -10,6 +10,7 @@ from matplotlib.colors import rgb2hex
 from matplotlib.lines import Line2D
 
 from .baselines import rubberband
+from .peaks import around_max_peak_fit
 
 __all__ = ["SpectraFrame"]
 
@@ -575,15 +576,27 @@ class SpectraFrame:
 
     # ----------------------------------------------------------------------
     # Manipulations
-    def normalize(self, method: str, ignore_na: bool = True) -> "SpectraFrame":
+    def normalize(
+        self,
+        method: str,
+        ignore_na: bool = True,
+        peak_range: Optional[Tuple[int]] = None,
+        **kwargs,
+    ) -> "SpectraFrame":
         """Dispatcher for spectra normalization
 
         Parameters
         ----------
         method : str
-            Method of normaliztion. Available options: '01', 'area', 'vector', 'mean'
+            Method of normaliztion. Available options: '01', 'area', 'vector', 'mean',
+            'peak' (normalize by peak value in the given range). By default, peak value
+            is approximated by the maximum value in the given range. To use a different
+            method, use the `**kwargs` to pass to `around_max_peak_fit` function.
         ignore_na : bool, optional
             Ignore NaN values in the data, by default True
+        peak_range : tuple[int], optional
+            Range of wavelength/wavenumber to use for peak normalization.
+            If None (default), the whole range is used.
 
         Returns
         -------
@@ -602,7 +615,15 @@ class SpectraFrame:
         elif method == "area":
             spc = spc / spc.area()
         elif method == "peak":
-            raise NotImplementedError("Method not implemented yet")
+            if peak_range is None:
+                peak_range = (self.wl[0], self.wl[-1])
+
+            peak_intensities = around_max_peak_fit(
+                x=self[:, :, peak_range[0] : peak_range[1]].wl,
+                y=self[:, :, peak_range[0] : peak_range[1]].spc,
+                **kwargs,
+            )
+            spc = spc / peak_intensities.y_max.values.reshape((spc.nspc, -1))
         elif method == "vector":
             if ignore_na:
                 spc = spc / np.sqrt(
@@ -612,6 +633,8 @@ class SpectraFrame:
                 spc = spc / np.sqrt(np.sum(np.power(spc.spc, 2), axis=1, keepdims=True))
         elif method == "mean":
             spc = spc / spc.mean(axis=1, ignore_na=ignore_na)
+        else:
+            raise ValueError("Unknown normalization method")
 
         return spc
 
