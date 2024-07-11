@@ -93,7 +93,7 @@ def _span_spikes(y: np.ndarray, is_spike: np.ndarray, w: int = 5) -> np.ndarray:
 
 def find_spikes(
     y: np.ndarray,
-    ndiff: int = 0,
+    ndiff: int = 1,
     method: str = "zscore",
     threshold: float = None,
     iqr_factor: float = 7,
@@ -104,15 +104,21 @@ def find_spikes(
     Parameters
     ----------
     y : np.ndarray
-        Input data
+        Input data 1D array of a single spectrum or 2D matrix (spectra in rows)
     n_diff : int, optional
-        Order of differentiation, by default 0
+        Order of differentiation, by default 1
     method : str, optional
         Outlier detection method, by default "zscore"
+        Available options:
+        * 'zscore' for z-score (x[i,j]-mean(x[i,:]))/std(x[i,:])
+        * 'mzscore' for modified z-score (x[i,j]-median(x[i,:]))/mad(x[i,:])
+        * 'iqr' for inter-quartile range [q1 - factor*iqr, q3 + factor*iqr]
     threshold : float, optional
-        Threshold value for outlier/spike detection, by default None
+        Threshold value for outlier/spike detection, by default None.
+        Used only with 'zscore' and 'mzscore' methods.
     iqr_factor : float, optional
-        Factor for the IQR calculation, by default 7
+        Factor for the IQR calculation, by default 7.
+        Used only with 'iqr' method.
 
     Returns
     -------
@@ -128,7 +134,7 @@ def find_spikes(
         )
 
     if ndiff == 0:
-        pass
+        data = y
     elif ndiff == 1:
         data = np.diff(y, n=1, axis=1, append=y[:, [-2]])
     elif ndiff == 2:
