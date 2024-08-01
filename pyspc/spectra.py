@@ -440,7 +440,7 @@ class SpectraFrame:
         self,
         func: Union[str, callable],
         *args,
-        groupby: Union[str, list[str]] = None,
+        groupby: Union[str, list[str], None] = None,
         axis: int = 0,
         **kwargs,
     ) -> "SpectraFrame":
@@ -481,7 +481,7 @@ class SpectraFrame:
             new_spc = self._apply_func(func, *args, axis=axis, **kwargs)
         else:
             # Prepare a dataframe for groupby aggregation
-            grouped = self.to_pandas().groupby(groupby)[self.wl]
+            grouped = self.to_pandas().groupby(groupby, observed=True)[self.wl]
 
             # Prepare list of group names as dicts {'column name': 'column value', ...}
             keys = [i for i, _ in grouped]
