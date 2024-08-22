@@ -230,6 +230,14 @@ class TestSpectraFrameItems:
         assert np.array_equal(result.wl, [400, 600])
         assert result.data.equals(frame.data.iloc[1:3, :])
 
+        # Test for invalid wavelengths
+        with pytest.raises(ValueError):
+            frame[:, :, 540]
+
+        result = frame[:, :, 510:550]
+        assert result.spc.shape == (3, 0)
+        assert result.data.equals(frame.data)
+
     def test_getitem_iloc(self):
         frame = self.sample_spectra_frame()
 

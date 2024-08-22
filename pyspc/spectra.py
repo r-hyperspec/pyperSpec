@@ -25,16 +25,132 @@ def _is_empty_slice(param: Any) -> bool:
     )
 
 
+def _parse_getitem_single_selector(
+    index: pd.Index, selector: Any, iloc: bool = False
+) -> Union[slice, np.array]:
+    """
+    Parse a single selector for indexing.
+
+    Converts various types of selectors, such as slices, boolean, list of specific
+    items, with/without iloc, to a standard format: slice or np.array with iloc values.
+
+    Parameters
+    ----------
+    index (pd.Index):
+        The index to be used for indexing.
+    selector (Any):
+        The selector to be parsed.
+    iloc (bool, optional):
+        Whether the selector is for iloc indexing. Defaults to False.
+
+    Returns
+    -------
+    Union[slice, np.array]:
+        The parsed selector.
+
+    Raises
+    ------
+    ValueError:
+        If the boolean vector length does not match the index length.
+    ValueError:
+        If the selector contains unexpected values.
+
+    Examples
+    --------
+    Example 1: Slicing selector
+    >>> index = pd.Index([1, 2, 3, 4, 5])
+    >>> selector = slice(1, 4)
+    >>> _parse_getitem_single_selector(index, selector)
+    slice(0, 4, None)
+
+    Example 2: Boolean vector selector
+    >>> index = pd.Index([1, 2, 3, 4, 5])
+    >>> selector = np.array([True, False, True, False, True])
+    >>> _parse_getitem_single_selector(index, selector)
+    array([0, 2, 4], dtype=int64)
+
+    Example 3: List of specific items selector
+    >>> index = pd.Index([1, 2, 3, 4, 5])
+    >>> _parse_getitem_single_selector(index, [2, 4])
+    array([1, 3], dtype=int64)
+    >>> _parse_getitem_single_selector(index, [2, 4], iloc=True)
+    array([2, 4])
+    """
+    # If selector is slicer like 400:600 or 0:8:2
+    if isinstance(selector, slice):
+        if _is_empty_slice(selector) or iloc:
+            return selector
+        else:
+            return index.slice_indexer(selector.start, selector.stop, selector.step)
+
+    # Pre-format selector to be 1d np.array
+    selector: np.ndarray = np.array(selector)
+    if selector.ndim == 0:
+        selector = selector.reshape((-1,))
+
+    # If boolean vector, e.g. [True, False, True]
+    if selector.dtype == "bool":
+        if len(selector) != len(index):
+            raise ValueError("Boolean vector has does not match with the size")
+        return np.where(selector)[0]
+
+    # List of specific items to select, e.g. ["A", "D"], [0,-1]
+    if iloc:
+        idx = selector
+    else:
+        idx = index.get_indexer(selector)
+        if np.any(idx == -1):
+            raise ValueError(f"Unexpected selector {selector[idx == -1]}")
+
+    return idx
+
+
 class SpectraFrame:
+    """A class to represent unfolded spectral data"""
+
     # ----------------------------------------------------------------------
     # Constructor
 
     def __init__(  # noqa: C901
         self,
-        spc: np.ndarray,
-        wl: Optional[np.ndarray] = None,
+        spc: ArrayLike,
+        wl: Optional[ArrayLike] = None,
         data: Optional[pd.DataFrame] = None,
     ) -> None:
+        """Create a new SpectraFrame object
+
+        Parameters
+        ----------
+        spc : ArrayLike
+            Spectral data. A 2D array where each row represents a spectrum.
+        wl : Optional[ArrayLike], optional
+            Spectral coordinates, i.e. wavelengths, wavenumbers, etc.
+            If None, then the range 0..N is used, by default None.
+        data : Optional[pd.DataFrame], optional
+            Additional meta-data, by default None
+
+        Raises
+        ------
+        ValueError
+            If the provided data or wl is not valid (i.e. wrong shape, etc.)
+        ValueError
+            If shapes do not match (e.g. number of rows in spc and data)
+
+        Examples
+        --------
+        >>> np.random.seed(42)
+        >>> sf = SpectraFrame(
+        ...     np.random.rand(4,5),
+        ...     wl=np.linspace(600,660,5),
+        ...     data={"group": list("AABB")}
+        ... )
+        >>> print(sf)
+              600.0  ...     660.0 group
+        0  0.374540  ...  0.156019     A
+        1  0.155995  ...  0.708073     A
+        2  0.020584  ...  0.181825     B
+        3  0.183405  ...  0.291229     B
+        """
         # Prepare SPC
         spc = np.array(spc)
         if spc.ndim == 1:
@@ -77,6 +193,45 @@ class SpectraFrame:
     def _parse_string_or_column_param(
         self, param: Union[str, pd.Series, np.ndarray, list, tuple]
     ) -> pd.Series:
+        """Manage different types of method arguments
+
+        Many methods provide flexibility in the input parameters. For example,
+        a user can provide either a string with the name of a data column or
+        an array-like structure with the same number of elements as the number
+        of spectra. This method helps to parse and convert the input to a
+        standard format.
+
+        Parameters
+        ----------
+        param : Union[str, pd.Series, np.ndarray, list, tuple]
+            The input parameter to be parsed
+
+        Returns
+        -------
+        pd.Series
+            A pandas Series with the same index as the data
+
+        Raises
+        ------
+        TypeError
+            If it was not possible to parse the input parameter
+
+        Examples
+        --------
+        >>> sf = SpectraFrame(np.random.rand(2,5), data={"group": list("AB")})
+        >>> sf._parse_string_or_column_param("group")
+        0    A
+        1    B
+        Name: group, dtype: object
+        >>> sf._parse_string_or_column_param(["C", "D"])
+        0    C
+        1    D
+        dtype: object
+        >>> sf._parse_string_or_column_param(pd.Series(["C", "D"],index=[3,4]))
+        0    C
+        1    D
+        dtype: object
+        """
         if isinstance(param, str) and (param in self.data.columns):
             return self.data[param]
         elif isinstance(param, pd.Series) and (param.shape[0] == self.nspc):
@@ -138,38 +293,27 @@ class SpectraFrame:
 
     # ----------------------------------------------------------------------
     # Accessing data
-    def _parse_getitem_single_selector(
-        self, index: pd.Index, selector: Any, iloc: bool = False
-    ) -> Union[slice, list]:
-        # If selector is slicer like 400:600 or 0:8:2
-        if isinstance(selector, slice):
-            if _is_empty_slice(selector) or iloc:
-                return selector
-            else:
-                return index.slice_indexer(selector.start, selector.stop, selector.step)
-
-        # Pre-format selector to be 1d np.array
-        selector: np.ndarray = np.array(selector)
-        if selector.ndim == 0:
-            selector = selector.reshape((-1,))
-
-        # If boolean vector, e.g. [True, False, True]
-        if selector.dtype == "bool":
-            if len(selector) != len(index):
-                raise ValueError("Boolean vector has does not match with the size")
-            return np.where(selector)[0]
-
-        # List of specific items to select, e.g. ["A", "D"], [0,-1]
-        if iloc:
-            idx = selector
-        else:
-            idx = index.get_indexer(selector)
-            if np.any(idx == -1):
-                raise ValueError(f"Unexpected selector {index[idx == -1]}")
-
-        return idx
-
     def _parse_getitem_tuple(self, slicer: tuple) -> tuple:
+        """Parse the tuple provided in __getitem__/__setitem__ methods
+
+        Basically, validates the tuple and formats each part of the tuple
+        to be in a standard format: slice or np.array with iloc values.
+
+        Parameters
+        ----------
+        slicer : tuple
+            The tuple provided in __getitem__ method
+
+        Returns
+        -------
+        tuple
+            A tuple of three slices: row, column, and wavelength
+
+        Raises
+        ------
+        ValueError
+            If the provided slicer is not valid
+        """
         if not ((type(slicer) == tuple) and (len(slicer) in [3, 4])):
             raise ValueError(
                 "Invalid subset value. Provide 3 values in format <row, column, wl>"
@@ -184,13 +328,13 @@ class SpectraFrame:
         rows, cols, wls = slicer
 
         # From labels to indices
-        row_selector = self._parse_getitem_single_selector(
+        row_selector = _parse_getitem_single_selector(
             self.data.index, rows, iloc=use_iloc
         )
-        col_selector = self._parse_getitem_single_selector(
+        col_selector = _parse_getitem_single_selector(
             self.data.columns, cols, iloc=use_iloc
         )
-        wl_selector = self._parse_getitem_single_selector(
+        wl_selector = _parse_getitem_single_selector(
             pd.Index(self.wl), wls, iloc=use_iloc
         )
 
@@ -211,7 +355,98 @@ class SpectraFrame:
                 "wavelengths indexes must be `:`"
             )
 
-    def __getitem__(self, given: Union[str, tuple]) -> "SpectraFrame":
+    def __getitem__(self, given: Union[str, tuple]) -> Union[pd.Series, "SpectraFrame"]:
+        """Get a subset of the SpectraFrame
+
+        Provides a logic for the `[...]` operator.
+        Two types of slicing are supported:
+        1. Single string - returns a corresponding column from the data
+        2. Tuple of three or four slicers - returns a subset of the SpectraFrame
+        The latter is working similar to `hyperSpec` package in R. Basically,
+        it allows to slice the data by as
+        `sf[rows, cols, wls]` or `sf[rows, cols, wls, is_iloc]` where `rows`, `cols`,
+        and `wls` can be either a single value, a list of values, a slice, or a boolean
+        vector; and `is_iloc` is a boolean flag to indicate whether the slicing is
+        done by iloc or by label (similar to `wl_index` in `hyperSpec`).
+
+        NOTE: The slicing is behaving like in `pandas` DataFrame, so the last value
+        in the slice is included in the output.
+
+        Parameters
+        ----------
+        given : Union[str, tuple]
+            Single string or a tuple of three slicers and an optional flag
+
+        Returns
+        -------
+        Union[pd.Series, SpectraFrame]
+            Eirther a single column from the data or a subset of the SpectraFrame
+
+        Examples
+        --------
+        >>> # Generate a SpectraFrame
+        >>> spc = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        >>> wl = np.array([400, 500, 600])
+        >>> data = pd.DataFrame(
+        ...     {"A": [10, 11, 12], "B": [13, 14, 15], "C": [16, 17, 18]},
+        ...     index=[5, 6, 7],
+        ... )
+        >>> sf = SpectraFrame(spc, wl, data)
+        >>> print(sf)
+           400  500  600   A   B   C
+        5  1.0  2.0  3.0  10  13  16
+        6  4.0  5.0  6.0  11  14  17
+        7  7.0  8.0  9.0  12  15  18
+
+        >>> # Get a single column
+        >>> print(sf["A"])
+        5    10
+        6    11
+        7    12
+        Name: A, dtype: int64
+
+        >>> # Get a subset of the SpectraFrame
+        >>> print(sf[:5, :, :500])
+           400  500   A   B   C
+        5  1.0  2.0  10  13  16
+
+        >>> # Access by iloc indexes
+        >>> print(sf[:1, :, :1, True])
+           400   A   B   C
+        5  1.0  10  13  16
+
+        >>> print(sf[6:, 'B':'C', 500:])
+           500  600   B   C
+        6  5.0  6.0  14  17
+        7  8.0  9.0  15  18
+
+        >>> print(sf[6:, 'B':'C', [400, 600]])
+           400  600   B   C
+        6  4.0  6.0  14  17
+        7  7.0  9.0  15  18
+
+        >>> print(sf[:, :, 400])
+           400   A   B   C
+        5  1.0  10  13  16
+        6  4.0  11  14  17
+        7  7.0  12  15  18
+
+        >>> print(sf[:, :, 550])
+        Traceback (most recent call last):
+        ValueError: Unexpected selector [550]
+
+        >>> print(sf[:, :, 510:550])
+            A   B   C
+        5  10  13  16
+        6  11  14  17
+        7  12  15  18
+
+        >>> print(sf[:, :, 350:450])
+           400   A   B   C
+        5  1.0  10  13  16
+        6  4.0  11  14  17
+        7  7.0  12  15  18
+        """
         if isinstance(given, str):
             return self.data[given]
 
@@ -226,7 +461,33 @@ class SpectraFrame:
         return getattr(self.data, name)
 
     def query(self, expr: str) -> "SpectraFrame":
-        """Filter spectra using pandas DataFrame.query"""
+        """Filter spectra using pandas DataFrame.query
+
+        Parameters
+        -----------
+        expr : str
+            Query expression
+
+        Returns
+        -------
+        SpectraFrame
+            A new SpectraFrame with the filtered data
+
+        Example
+        -------
+        >>> np.random.seed(42)
+        >>> sf = SpectraFrame(np.random.rand(4, 5), data={"group": list("AABB")})
+        >>> print(sf)
+                  0  ...         4 group
+        0  0.374540  ...  0.156019     A
+        1  0.155995  ...  0.708073     A
+        2  0.020584  ...  0.181825     B
+        3  0.183405  ...  0.291229     B
+        >>> sf.query("group == 'A'")
+                  0  ...         4 group
+        0  0.374540  ...  0.156019     A
+        1  0.155995  ...  0.708073     A
+        """
         indices = self.data.query(expr).index
         return self[indices, :, :]
 
@@ -322,6 +583,7 @@ class SpectraFrame:
             Which is using `scipy.interpolate.interp1d` function.
         kwargs : dict, optional
             Additional parameters to be passed to the interpolator function.
+            See `scipy.interpolate.interp1d` docs for more details.
 
         Returns
         -------
@@ -881,8 +1143,11 @@ class SpectraFrame:
 
     # ----------------------------------------------------------------------
     def _to_print_dataframe(self) -> pd.DataFrame:
-        print_df = self[:, :, [0, -1], True].to_pandas()
-        print_df.insert(loc=1, column="...", value="...")
+        if self.nwl > 3:
+            print_df = self[:, :, [0, -1], True].to_pandas()
+            print_df.insert(loc=1, column="...", value="...")
+        else:
+            print_df = self.to_pandas()
         return print_df
 
     def __str__(self) -> str:
