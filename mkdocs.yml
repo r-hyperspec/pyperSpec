@@ -4,4 +4,5 @@ theme:
   name: "material"
 
 plugins:
+  - search
   - mkdocstrings
