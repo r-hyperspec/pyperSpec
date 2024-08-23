@@ -23,7 +23,9 @@ pre-commit = "^3.4.0"
 ipython = "^8.15.0"
 mkdocs = "^1.6.0"
 mkdocs-material = "^9.5.28"
-mkdocstrings = {extras = ["python"], version = "^0.25.1"}
+mkdocstrings = { extras = ["python"], version = "^0.25.1" }
+pymdown-extensions = "^10.9"
+mkdocs-exclude = "^1.0.2"
 
 [tool.ruff]
 # Enable the pycodestyle (`E`) and Pyflakes (`F`) rules by default.

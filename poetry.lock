@@ -956,6 +956,19 @@ markupsafe = ">=2.0.1"
 mkdocs = ">=1.1"
 
 [[package]]
+name = "mkdocs-exclude"
+version = "1.0.2"
+description = "A mkdocs plugin that lets you exclude files or trees."
+optional = false
+python-versions = "*"
+files = [
+    {file = "mkdocs-exclude-1.0.2.tar.gz", hash = "sha256:ba6fab3c80ddbe3fd31d3e579861fd3124513708271180a5f81846da8c7e2a51"},
+]
+
+[package.dependencies]
+mkdocs = "*"
+
+[[package]]
 name = "mkdocs-get-deps"
 version = "0.2.0"
 description = "MkDocs extension that lists all dependencies according to a mkdocs.yml file"
@@ -1454,13 +1467,13 @@ plugins = ["importlib-metadata"]
 
 [[package]]
 name = "pymdown-extensions"
-version = "10.8.1"
+version = "10.9"
 description = "Extension pack for Python Markdown."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pymdown_extensions-10.8.1-py3-none-any.whl", hash = "sha256:f938326115884f48c6059c67377c46cf631c733ef3629b6eed1349989d1b30cb"},
-    {file = "pymdown_extensions-10.8.1.tar.gz", hash = "sha256:3ab1db5c9e21728dabf75192d71471f8e50f216627e9a1fa9535ecb0231b9940"},
+    {file = "pymdown_extensions-10.9-py3-none-any.whl", hash = "sha256:d323f7e90d83c86113ee78f3fe62fc9dee5f56b54d912660703ea1816fed5626"},
+    {file = "pymdown_extensions-10.9.tar.gz", hash = "sha256:6ff740bcd99ec4172a938970d42b96128bdc9d4b9bcad72494f29921dc69b753"},
 ]
 
 [package.dependencies]
@@ -2008,4 +2021,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "ce02ffc1c44c1fce4a7fca79fc898fcec94a66189ac44c52cb5eda07ee43d722"
+content-hash = "154a07965b55af5df47204053a1e13c8b5a9543de88216b5c49e31af17a26141"

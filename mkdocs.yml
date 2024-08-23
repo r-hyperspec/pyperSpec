@@ -1,8 +1,86 @@
 site_name: pyperspec
 
+repo_url: https://github.com/r-hyperspec/pyperspec
+
+# See https://squidfunk.github.io/mkdocs-material/setup/ for more options
 theme:
   name: "material"
+  language: en
+  features:
+    - content.code.copy
+    # - content.tabs.link
+    - content.code.annotate
+    # - navigation.tabs
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.preview
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.suggest
+    - toc.follow
+  palette: 
+    # Palette toggle for light mode
+    - scheme: default
+      toggle:
+        icon: material/brightness-7 
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  # logo: 'logo-white.svg'
+  favicon: "https://avatars.githubusercontent.com/u/66628186?s=48&v=4"
 
 plugins:
   - search
-  - mkdocstrings
+  - exclude:
+      glob:
+      - plugins/*
+      - __pycache__/*
+      - .git/*
+      - .pytest_cache
+  # https://mkdocstrings.github.io/python/usage/configuration/general/
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            heading_level: 2
+            parameter_headings: true
+            show_root_heading: true
+            show_category_heading: true
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            group_by_category: true
+            summary: true
+            docstring_style: numpy
+            members_order: source
+
+markdown_extensions:
+  - pymdownx.pathconverter
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.snippets:
+      base_path:
+      - docs
+      - README.md
+      check_paths: true
+
+watch:
+  - docs
+  - pyspc
+  - README.md
+
+nav:
+  - Home: index.md
+  # - Installation: installation.md
+  # - Tutorial: tutorial.md
+  - API Reference:
+    - SpectraFrame: api-spectraframe.md
