@@ -340,21 +340,6 @@ class SpectraFrame:
 
         return row_selector, col_selector, wl_selector
 
-    def __setitem__(self, given: Union[str, tuple], value: Any) -> None:
-        if isinstance(given, str):
-            return self.data.__setitem__(given, value)
-
-        row_slice, col_slice, wl_slice = self._parse_getitem_tuple(given)
-        if _is_empty_slice(col_slice) and not _is_empty_slice(wl_slice):
-            self.spc[row_slice, wl_slice] = value
-        elif not _is_empty_slice(col_slice) and _is_empty_slice(wl_slice):
-            self.data.iloc[row_slice, col_slice] = value
-        else:
-            raise ValueError(
-                "Invalid slicing. Either data columns or "
-                "wavelengths indexes must be `:`"
-            )
-
     def __getitem__(self, given: Union[str, tuple]) -> Union[pd.Series, "SpectraFrame"]:
         """Get a subset of the SpectraFrame
 
@@ -369,7 +354,9 @@ class SpectraFrame:
         vector; and `is_iloc` is a boolean flag to indicate whether the slicing is
         done by iloc or by label (similar to `wl_index` in `hyperSpec`).
 
-        NOTE: The slicing is behaving like in `pandas` DataFrame, so the last value
+        Warning
+        -------
+        The slicing is behaving like in `pandas` DataFrame, so the last value
         in the slice is included in the output.
 
         Parameters
@@ -457,6 +444,91 @@ class SpectraFrame:
             data=self.data.iloc[row_slice, col_slice],
         )
 
+    def __setitem__(self, given: Union[str, tuple], value: Any) -> None:
+        """Set values in a subset of the SpectraFrame
+
+        Provides a logic for the `frame[<given>] = <value>` operator.
+        <given> has the same format as in `__getitem__` method. The <value>
+        can be either a single value or array-like structure with the same
+        number of elements as the subset of the SpectraFrame.
+
+        Warning
+        -------
+        Either one of wavelenght or data columns (i.e. second or third slicers)
+        must be `:`. Otherwise, it is not clear where to put the value.
+        Therefore the method will raise an error in such cases,
+        e.g. `sf[:, "a", 400:1000] = 10`.
+
+
+        Parameters
+        ----------
+        given : Union[str, tuple]
+            Single string or a tuple of three slicers
+        value : Any
+            The value to be set in the subset
+
+        Examples
+        --------
+        >>> # Generate a SpectraFrame
+        >>> spc = np.arange(9).reshape(3, 3)
+        >>> sf = SpectraFrame(spc, [400, 500, 600], {"A": [10, 11, 12]})
+        >>> print(sf)
+           400  500  600   A
+        0    0    1    2  10
+        1    3    4    5  11
+        2    6    7    8  12
+
+        >>> # Add a column
+        >>> sf["B"] = [20, 21, 22]
+        >>> print(sf)
+           400  500  600   A   B
+        0    0    1    2  10  20
+        1    3    4    5  11  21
+        2    6    7    8  12  22
+
+        >>> # Set a single value
+        >>> sf[0, :, 500] = 100
+        >>> print(sf)
+           400  500  600   A   B
+        0    0  100    2  10  20
+        1    3    4    5  11  21
+        2    6    7    8  12  22
+
+        >>> # Set a subset
+        >>> sf[1:, :, 500:] = [[200, 201], [300, 301]]
+        >>> print(sf)
+           400  500  600   A   B
+        0    0  100    2  10  20
+        1    3  200  201  11  21
+        2    6  300  301  12  22
+
+        >>> # Set a subset with iloc
+        >>> sf[:2, :, :2, True] = 0
+        >>> print(sf)
+           400  500  600   A   B
+        0    0    0    2  10  20
+        1    0    0  201  11  21
+        2    6  300  301  12  22
+
+        >>> # Invalid selector
+        >>> sf[:, ["A", "B"], :500] = 0
+        Traceback (most recent call last):
+        ValueError: Invalid slicing...
+        """
+        if isinstance(given, str):
+            return self.data.__setitem__(given, value)
+
+        row_slice, col_slice, wl_slice = self._parse_getitem_tuple(given)
+        if _is_empty_slice(col_slice) and not _is_empty_slice(wl_slice):
+            self.spc[row_slice, wl_slice] = value
+        elif not _is_empty_slice(col_slice) and _is_empty_slice(wl_slice):
+            self.data.iloc[row_slice, col_slice] = value
+        else:
+            raise ValueError(
+                "Invalid slicing. Either data columns or "
+                "wavelengths indexes must be `:`"
+            )
+
     def __getattr__(self, name) -> pd.Series:
         return getattr(self.data, name)
 
@@ -473,8 +545,8 @@ class SpectraFrame:
         SpectraFrame
             A new SpectraFrame with the filtered data
 
-        Example
-        -------
+        Examples
+        --------
         >>> np.random.seed(42)
         >>> sf = SpectraFrame(np.random.rand(4, 5), data={"group": list("AABB")})
         >>> print(sf)
