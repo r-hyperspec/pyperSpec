@@ -66,15 +66,18 @@ def _parse_getitem_single_selector(
     Example 2: Boolean vector selector
     >>> index = pd.Index([1, 2, 3, 4, 5])
     >>> selector = np.array([True, False, True, False, True])
-    >>> _parse_getitem_single_selector(index, selector)
-    array([0, 2, 4], dtype=int64)
+    >>> indices = _parse_getitem_single_selector(index, selector)
+    >>> print(indices)
+    [0 2 4]
 
     Example 3: List of specific items selector
     >>> index = pd.Index([1, 2, 3, 4, 5])
-    >>> _parse_getitem_single_selector(index, [2, 4])
-    array([1, 3], dtype=int64)
-    >>> _parse_getitem_single_selector(index, [2, 4], iloc=True)
-    array([2, 4])
+    >>> indices = _parse_getitem_single_selector(index, [2, 4])
+    >>> print(indices)
+    [1 3]
+    >>> indices = _parse_getitem_single_selector(index, [2, 4], iloc=True)
+    >>> print(indices)
+    [2 4]
     """
     # If selector is slicer like 400:600 or 0:8:2
     if isinstance(selector, slice):
