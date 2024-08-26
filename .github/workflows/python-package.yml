@@ -87,7 +87,7 @@ jobs:
 
     - name: Run tests
       run: |
-        poetry run pytest --cov --doctest-modules
+        poetry run pytest --doctest-modules --cov-report=html --cov
 
     - name: Upload results to Codecov
       uses: codecov/codecov-action@v4
